@@ -22,7 +22,23 @@ test('env tokens match identifier parts and affixes and withhold values', () => 
   }
 });
 import { cpSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawnSync as spawnProcess } from 'node:child_process';
+
+function assertWithheld(output, entries) {
+  const project = (value) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const entry of entries.split(/[\r\n,]/).filter(Boolean)) {
+    const target = project(entry);
+    if (target) assert.ok(!project(output).includes(target), 'Private projection leaked');
+  }
+}
+
+function spawnSync(command, args, options) {
+  const result = spawnProcess(command, args, options);
+  if (options.env?.NEUTRALITY_SHOW_VALUES !== 'true') {
+    assertWithheld(result.stdout + result.stderr, options.env?.NEUTRALITY_DENYLIST || '');
+  }
+  return result;
+}
 
 test('CLI scans through a linked guide directory', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'neutrality-link-'));
@@ -32,7 +48,7 @@ test('CLI scans through a linked guide directory', (t) => {
     mkdirSync(join(guide, 'scripts'), { recursive: true });
     const script = join(guide, 'scripts', 'check-neutrality.mjs');
     cpSync(new URL('./check-neutrality.mjs', import.meta.url), script);
-    const token = 'TestOnlyLinkedToken';
+    const token = 'zebraquartz';
     writeFileSync(join(guide, 'fixture.md'), token);
     try {
       symlinkSync(guide, linked, process.platform === 'win32' ? 'junction' : 'dir');
@@ -70,8 +86,8 @@ for (const [token, text, expected] of [
  ['zebraQuartz','zebraQuartz',1], ['zebraQuartz','zebra_quartz',1],
  ['zebraQuartz','ZEBRA_QUARTZ',1], ['zebraQuartz','cliZebraQuartzRun',1],
  ['zebraQuartz','cli_zebra_quartz_run',1], ['quartz','quartzite bequartz',1],
- ['zorb','gazorb',1], ['HTTPServer','cliHTTPServerRun',1],
- ['zebra-quartz','prefixZEBRA-QUARTZsuffix',0], ['zebra.quartz','prefixZEBRA.QUARTZsuffix',0],
+ ['zorb','gazorb',1], ['ZEBRAQuartz','cliZEBRAQuartzRun',1],
+ ['zebra-quartz','prefixZEBRA-QUARTZsuffix',1], ['zebra.quartz','prefixZEBRA.QUARTZsuffix',1],
  ['___','___',0],
 ]) test('synthetic matching: '+text, () => {
  const root=mkdtempSync(join(tmpdir(),'neutrality-parts-'));
@@ -133,15 +149,15 @@ for (const [entry, texts, expected] of [
   ['zeta quorum', ['the Zeta Quorum', 'zeta_quorum'], true],
   ['zeta-quorum', ['zeta-quorum', 'zeta_quorum', 'ZETA_QUORUM', 'zetaQuorum', 'zetaquorum', 'the zeta quorum', 'Zeta Quorum', 'zeta quorum', 'the Zeta Quorum', 'cli_zeta_quorum_run', 'zeta-quorum/x.mjs'], true],
   ['zetacore', ['zetacores', 'libzetacore', 'zetacore2'], true],
-  ['=lever', ['lever', 'LEVER_X', 'leverArm'], true],
-  ['=lever', ['cleverly', 'levers'], false],
+  ['=tarmox', ['tarmox', 'TARMOX_X', 'tarmoxArm'], true],
+  ['=tarmox', ['xtarmoxy', 'tarmoxs'], false],
   ['tarmox', ['star moxie'], false],
 ]) {
   for (const text of texts) test('parts matching: ' + entry + ' / ' + text, () => {
     assert.equal(matches(text, entry), expected);
   });
 }
-test('acronym boundary', () => assert.deepEqual(parts('HTTPServer'), ['http', 'server']));
+test('acronym boundary', () => assert.deepEqual(parts('ZEBRAQuartz'), ['zebra', 'quartz']));
 
 for (const show of [false, true]) test('all output paths, show=' + show, (t) => {
   const root = mkdtempSync(join(tmpdir(), 'neutrality-output-'));
@@ -164,7 +180,7 @@ for (const show of [false, true]) test('all output paths, show=' + show, (t) => 
     let output = result.stdout + result.stderr;
     assert.equal(result.status, 1, output);
     assert.match(output, /\[unreadable\]/);
-    assert.match(output, /scanned 3 files; skipped 1 binary files/);
+    assert.match(output, /scanned 3 files; skipped public rules for 1 binary files/);
     assert.match(output, /\[tool-name\]/);
     assert.equal(/zetacore/i.test(output), show, output);
     if (!show) {
@@ -209,3 +225,81 @@ test('private entries cannot span LF, CRLF, or CR lines', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+function fixture(run) {
+  const root = mkdtempSync(join(tmpdir(), 'neutrality-regression-'));
+  try {
+    mkdirSync(join(root, 'guide', 'scripts'), { recursive: true });
+    const script = join(root, 'guide', 'scripts', 'check-neutrality.mjs');
+    cpSync(new URL('./check-neutrality.mjs', import.meta.url), script);
+    const cli = (entry, show = 'false') => spawnSync(process.execPath, [script], {
+      encoding: 'utf8', timeout: 5000,
+      env: { ...process.env, NEUTRALITY_DENYLIST: entry, NEUTRALITY_SHOW_VALUES: show },
+    });
+    run(root, cli);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+for (const show of ['true', 'TRUE', '1', 'yes']) {
+  test('only exact true reveals normalized values: ' + show, () => fixture((root, cli) => {
+    writeFileSync(join(root, 'guide', 'fixture.md'), 'zebra_quartz cli_zebra_quartz_run');
+    const result = cli('zebraQuartz', show);
+    assert.equal(result.status, 1);
+    if (show === 'true') assert.match(result.stderr, /zebra_quartz/);
+  }));
+}
+
+test('prefixed paths, directories, dangling links and projection withholding', () => fixture((root, cli) => {
+  writeFileSync(join(root, 'guide', 'libzeta-quorum.md'), 'cli_public_run');
+  mkdirSync(join(root, 'libzeta-quorum'));
+  symlinkSync(join(root, 'absent'), join(root, 'libzeta-quorum-link'),
+    process.platform === 'win32' ? 'junction' : 'file');
+  // Exact-run matching rejects this prefix, but output must still hide it.
+  writeFileSync(join(root, 'guide', 'libzetaquorum.md'), 'cli_public_run');
+  for (const entry of ['zeta-quorum', '=zeta-quorum']) {
+    const result = cli(entry);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /\(path withheld\):1 \[tool-name\]/);
+    assert.match(result.stderr, /\[unreadable\]/);
+  }
+  assert.equal(matches('libzeta-quorum', 'zeta-quorum'), true);
+  assert.equal(matches('libzeta-quorum', '=zeta-quorum'), false);
+}));
+
+test('one MB extensionless line finishes below two seconds', () => fixture((root, cli) => {
+  writeFileSync(join(root, 'guide', 'fixture.md'), 'a-'.repeat(524288));
+  const start = performance.now();
+  assert.equal(cli('').status, 0);
+  const elapsed = performance.now() - start;
+  console.log('one MB scan milliseconds: ' + elapsed.toFixed(1));
+  assert.ok(elapsed < 2000, 'One MB scan took ' + elapsed + ' ms');
+}));
+
+test('NUL projections apply private rules for both UTF16 byte orders and BOM states', () => fixture((root, cli) => {
+  for (const be of [false, true]) for (const bom of [false, true]) {
+    let bytes = Buffer.from('zebraquartz cli_public_run', 'utf16le');
+    if (be) bytes.swap16();
+    if (bom) bytes = Buffer.concat([Buffer.from(be ? [0xfe, 0xff] : [0xff, 0xfe]), bytes]);
+    writeFileSync(join(root, 'guide', 'fixture.txt'), bytes);
+    const result = cli('zebraquartz');
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /\[private-token\]/);
+    assert.doesNotMatch(result.stderr, /\[tool-name\]/);
+    assert.match(result.stdout, /private list still applied/);
+  }
+  writeFileSync(join(root, 'guide', 'fixture.txt'), Buffer.from('\0zebraquartz\0'));
+  assert.equal(cli('zebraquartz').status, 1);
+}));
+
+test('directory links do not hide public findings or recurse into parents', () => fixture((root, cli) => {
+  writeFileSync(join(root, 'guide', 'fixture.md'), 'cli_public_run');
+  const type = process.platform === 'win32' ? 'junction' : 'dir';
+  symlinkSync(join(root, 'guide'), join(root, 'aaa'), type);
+  symlinkSync(root, join(root, 'guide', 'parent'), type);
+  const result = cli('');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /guide\/fixture.md:1 \[tool-name\]/);
+  assert.doesNotMatch(result.stderr, /unreadable/);
+}));
