@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 580" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Pre-egress guards timeline</title>
+  <desc>An entry guard fires once at delegation entry; a follow-up guard fires on every follow-up call. Each guard yields ALLOW, REWRITE, or DENY.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #111827; }
+      .subtitle { font-size: 14px; fill: #4b5563; }
+      .section { font-size: 12px; font-weight: 700; fill: #64748b; text-transform: uppercase; }
+      .card-title { font-size: 17px; font-weight: 700; fill: #111827; }
+      .body { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #475569; }
+      .tiny { font-size: 11px; fill: #64748b; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .axis { stroke: #94a3b8; stroke-width: 1; fill: none; stroke-dasharray: 4 4; }
+    </style>
+  </defs>
+
+  <rect width="1120" height="580" fill="#ffffff"/>
+
+  <text x="560" y="43" text-anchor="middle" class="title">Pre-egress guards timeline</text>
+  <text x="560" y="70" text-anchor="middle" class="subtitle">Entry guard once at entry; follow-up guard on every follow-up call. ALLOW | REWRITE | DENY.</text>
+
+  <line x1="60" y1="180" x2="1060" y2="180" class="axis"/>
+  <text x="60" y="108" class="section">timeline -&gt;</text>
+
+  <g>
+    <rect x="80" y="120" width="200" height="120" rx="8" fill="#eff6ff" stroke="#0078d4" stroke-width="2"/>
+    <text x="180" y="146" text-anchor="middle" class="card-title">t0: delegate entry</text>
+    <text x="180" y="172" text-anchor="middle" class="body mono">delegate call</text>
+    <text x="180" y="194" text-anchor="middle" class="small">payload: { prompt, cwd, model }</text>
+    <text x="180" y="222" text-anchor="middle" class="tiny">host delegation entry</text>
+  </g>
+
+  <path d="M 280 180 L 350 180" class="line"/>
+
+  <g>
+    <rect x="350" y="120" width="240" height="120" rx="8" fill="#eef8f4" stroke="#0f766e" stroke-width="2"/>
+    <text x="470" y="146" text-anchor="middle" class="card-title">entry guard</text>
+    <text x="470" y="172" text-anchor="middle" class="body">runs ONCE at entry</text>
+    <text x="470" y="194" text-anchor="middle" class="small">policy + sanitizer + classifier</text>
+    <text x="470" y="222" text-anchor="middle" class="tiny">prompt guard at delegation entry</text>
+  </g>
+
+  <path d="M 590 180 L 660 180" class="line"/>
+
+  <g>
+    <rect x="660" y="120" width="180" height="120" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+    <text x="750" y="146" text-anchor="middle" class="card-title">t1: follow-up #1</text>
+    <text x="750" y="172" text-anchor="middle" class="body mono">follow-up call</text>
+    <text x="750" y="194" text-anchor="middle" class="small">follow-up prompt</text>
+  </g>
+
+  <path d="M 840 180 L 870 180 L 870 138 L 905 138" class="line"/>
+
+  <g>
+    <rect x="908" y="120" width="148" height="50" rx="8" fill="#eef8f4" stroke="#0f766e" stroke-width="2"/>
+    <text x="982" y="142" text-anchor="middle" class="body" font-weight="700">follow-up guard</text>
+    <text x="982" y="160" text-anchor="middle" class="tiny">runs on each follow-up</text>
+  </g>
+
+  <text x="60" y="290" class="section">Outcomes per guard invocation</text>
+
+  <g>
+    <rect x="60" y="304" width="320" height="200" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="80" y="332" class="card-title">ALLOW</text>
+    <text x="80" y="356" class="body">payload passes through unchanged</text>
+    <text x="80" y="380" class="small">guard returns { action: "allow" }</text>
+    <text x="80" y="412" class="tiny">prompt forwarded to the worker session</text>
+    <text x="80" y="432" class="tiny mono">audit: entry allow / follow-up allow</text>
+    <text x="80" y="468" class="small">Default outcome when no policy match</text>
+    <text x="80" y="486" class="small">and trust scorer above threshold.</text>
+  </g>
+
+  <g>
+    <rect x="400" y="304" width="320" height="200" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+    <text x="420" y="332" class="card-title">REWRITE</text>
+    <text x="420" y="356" class="body">payload modified before send</text>
+    <text x="420" y="380" class="small">guard returns { action: "rewrite", text }</text>
+    <text x="420" y="412" class="tiny">e.g. inject [!neutralized] prefix</text>
+    <text x="420" y="432" class="tiny">audit: same as ALLOW; rewritten prompt sent</text>
+    <text x="420" y="468" class="small">Sanitizer outputs may rewrite without</text>
+    <text x="420" y="486" class="small">denying: degrade, do not block.</text>
+  </g>
+
+  <g>
+    <rect x="740" y="304" width="320" height="200" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="760" y="332" class="card-title">DENY</text>
+    <text x="760" y="356" class="body">payload rejected before send</text>
+    <text x="760" y="380" class="small">guard returns { action: "deny", reason }</text>
+    <text x="760" y="412" class="tiny">throws a denied error</text>
+    <text x="760" y="432" class="tiny mono">audit: entry denial / follow-up denial</text>
+    <text x="760" y="468" class="small">Fail-closed; no fallback to a weaker</text>
+    <text x="760" y="486" class="small">guard or downgraded mode.</text>
+  </g>
+
+  <text x="560" y="544" text-anchor="middle" class="small">Entry guard at delegation entry; follow-up guard on each follow-up call: in this design, both run before egress, including after a state change.</text>
+</svg>

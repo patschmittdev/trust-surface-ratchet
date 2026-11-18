@@ -1,0 +1,26 @@
+{
+  "name": "trust-surface-ratchet",
+  "version": "0.1.0",
+  "description": "A CI gate and repository practice that pins closed security lists in tests so changes to them surface in review.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "check:lockdowns": "node gate/check-lockdown-coverage.mjs",
+    "test:fixture": "node --test examples/adopter-fixture/tests/*.test.mjs",
+    "check:fixture": "node examples/adopter-fixture/gate/run-lockdown-coverage.mjs",
+    "check:guide-links": "node guide/scripts/check-links.mjs",
+    "check:guide-neutrality": "node guide/scripts/check-neutrality.mjs",
+    "check:fixture:strict": "node examples/adopter-fixture/gate/run-lockdown-coverage.mjs --strict"
+  },
+  "license": "Apache-2.0 AND CC-BY-4.0",
+  "author": "Patrick Schmitt",
+  "homepage": "https://github.com/patschmittdev/trust-surface-ratchet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patschmittdev/trust-surface-ratchet.git"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

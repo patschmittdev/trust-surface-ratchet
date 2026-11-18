@@ -1,0 +1,4 @@
+{
+  "boundary": "model-visible snapshot",
+  "fields": ["taskId", "permissionMode", "workingDirectory"]
+}

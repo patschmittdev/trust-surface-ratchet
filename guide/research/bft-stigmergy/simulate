@@ -1,0 +1,722 @@
+#!/usr/bin/env node
+// EXPERIMENTAL: research code, results not regenerated in CI.
+// Spike simulation: does Byzantine fault tolerance compose with stigmergy?
+//
+// Zero dependencies. Deterministic for a given seed. Run:
+//
+//   node simulate --sweep            # the table used in results.md
+//   node simulate --protocol attested --N 1000 --byz 0.3 --seed 1
+//   node simulate --help
+//
+// The model is deliberately small. It is an existence argument about cost and
+// tolerance shapes, not a faithful model of any deployed network. Read
+// memo.md for what each ingredient is meant to buy and threat-model.md for
+// what the adversary here can and cannot do.
+//
+// World. There are M options (routes, resources, tasks). Each has a hidden
+// true quality in [0, 1]; exactly one is best. Every round each honest agent
+// reads the evidence available to it about every option, exploits the
+// best-looking option (or explores at rate eps), observes that option's true
+// quality plus noise, and writes what it observed. Byzantine agents never act
+// honestly: they write whatever hurts the honest majority most.
+//
+// Success is measured as the fraction of honest agents whose exploit choice
+// at the end is the truly best option. Cost is measured as the number of
+// messages an agent sends or receives per round (reads plus writes).
+//
+// Four protocol families sit on the same world, so only the coordination
+// mechanism differs:
+//
+//   stigmergy  Additive pheromone on a single trusted board. Deposits are
+//              anonymous and uncapped, so a Byzantine agent deposits `amp`
+//              units of misleading evidence per round. Cost: 2 messages.
+//   bound      The same board, but every deposit is bound to an identity and
+//              an action: one deposit per identity per round, on the option
+//              it acted on. The board aggregates by per-option median over a
+//              sliding window of rounds. Cost: 2 messages. This isolates what
+//              identity binding buys on its own; the board is still trusted.
+//   broadcast  No board. Every agent sends its signed observation to every
+//              other agent each round and keeps a sliding window; evidence is
+//              the per-option median of received reports. This is the
+//              reliable-broadcast layer of a BFT system with the same
+//              identity rule as `bound`. Cost: 2(N-1) messages.
+//   attested   The board is sharded and replicated: cue m lives on a replica
+//              set of r nodes, so a fraction `byz` of replicas is Byzantine
+//              too. A deposit is signed and sent to the cue's replica set; a
+//              read samples k of those replicas and takes the median of their
+//              answers. Cost: 2(r + M*k) per node on average, independent of
+//              N, but concentrated on the replica slots. (Full
+//              replication, where every node holds every deposit, was
+//              rejected as a model: every node then receives every deposit,
+//              which is broadcast cost with better constants.)
+//
+// One agent-side ingredient is switchable on every identity-bound protocol
+// (--verify): conflict-triggered verification. A store that holds signed,
+// per-identity deposits can report not just a median but how many identities
+// dissent from it. An honest agent that reads a contested option spends part
+// of its exploration budget visiting that option, so contention attracts
+// honest observation instead of being decided by whoever wrote most. An
+// anonymous additive board cannot offer this, which is itself a result.
+//
+// A second switch (--memory) decides the regime the whole question lives in.
+// With it, an honest agent remembers what it observed itself for `window`
+// rounds and prefers that to anything the medium says. This is the regime in
+// which a cue is verifiable by acting on it. Without it, agents trust the
+// medium outright, which is the regime in which a cue cannot be checked.
+//
+// A Byzantine replica returns the adversary's preferred evidence vector on
+// every read and stores nothing. Byzantine depositors follow one of five
+// fixed strategies (see --adversary); two of them (spread, floodall) were
+// added by the independent review, which found that the original three were
+// not the adversary's best. The sweep reports the worst of the five for every
+// cell. That is still a hand-picked set, not a proof of optimality.
+//
+// In the sharded medium the identity rule is enforced per shard unless
+// --globalIdentity is set, which models a cross-shard accounting mechanism
+// (for example an action token consumed by a deposit) that the spike does not
+// design. The sweep reports both.
+
+import { parseArgs } from 'node:util';
+
+// ---------------------------------------------------------------------------
+// Deterministic randomness (splitmix32). No Math.random anywhere.
+// ---------------------------------------------------------------------------
+function makeRng(seed) {
+  let s = seed >>> 0;
+  const next = () => {
+    s = (s + 0x9e3779b9) >>> 0;
+    let z = s;
+    z = Math.imul(z ^ (z >>> 16), 0x21f0aaad);
+    z = Math.imul(z ^ (z >>> 15), 0x735a2d97);
+    z = (z ^ (z >>> 15)) >>> 0;
+    return z / 4294967296;
+  };
+  return {
+    float: next,
+    int: (n) => Math.floor(next() * n),
+    normal: () => {
+      const u = 1 - next();
+      const v = next();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    },
+    sample: (n, k) => {
+      // k distinct indices from [0, n) (partial Fisher-Yates on a lazy array)
+      const picked = new Map();
+      const out = [];
+      for (let i = 0; i < k; i++) {
+        const j = i + Math.floor(next() * (n - i));
+        const vi = picked.has(i) ? picked.get(i) : i;
+        const vj = picked.has(j) ? picked.get(j) : j;
+        out.push(vj);
+        picked.set(j, vi);
+        picked.set(i, vj);
+      }
+      return out;
+    },
+  };
+}
+
+function median(values) {
+  if (values.length === 0) return null;
+  const a = values.slice().sort((x, y) => x - y);
+  const mid = a.length >> 1;
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+// A cue is contested when at least `dissentMin` deposits dissent and they
+// are at least a share `dissentFrac` of deposits about it across the window.
+// At most one deposit per identity per round counts; one dissenter in two
+// rounds can meet a floor of two. The share limits honest noise at large N.
+function contestedFrom(dissentFrac, dissentCount, cfg) {
+  const out = [];
+  for (let m = 0; m < dissentFrac.length; m++) {
+    if (dissentCount[m] >= cfg.dissentMin && dissentFrac[m] >= cfg.dissentFrac) out.push(m);
+  }
+  return out;
+}
+
+function clamp01(x) {
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+
+// ---------------------------------------------------------------------------
+// World
+// ---------------------------------------------------------------------------
+function makeWorld(cfg, rng) {
+  const quality = new Array(cfg.M);
+  for (let m = 0; m < cfg.M; m++) quality[m] = 0.1 + 0.5 * rng.float();
+  const best = rng.int(cfg.M);
+  quality[best] = 1.0;
+  let worst = 0;
+  for (let m = 1; m < cfg.M; m++) if (quality[m] < quality[worst]) worst = m;
+  const nByz = Math.round(cfg.N * cfg.byz);
+  // Byzantine identities are a random subset so that replica indices and
+  // depositor indices are not trivially aligned.
+  const isByz = new Array(cfg.N).fill(false);
+  for (const i of rng.sample(cfg.N, nByz)) isByz[i] = true;
+  return { quality, best, decoy: worst, isByz, nByz };
+}
+
+// What a Byzantine depositor writes this round, under each strategy.
+// Returns { option, value }. `bound`, `broadcast` and `attested` accept one
+// deposit per identity per round; `stigmergy` accepts `amp` copies.
+function byzantineDeposit(strategy, world, agentIndex, round, M) {
+  switch (strategy) {
+    case 'flood':
+      return { option: world.decoy, value: 1 };
+    case 'suppress':
+      return { option: world.best, value: 0 };
+    case 'split':
+      return (agentIndex + round) % 2 === 0
+        ? { option: world.decoy, value: 1 }
+        : { option: world.best, value: 0 };
+    case 'spread': {
+      // one lure per identity, lures spread over every non-best option
+      let slot = agentIndex % (M - 1);
+      if (slot >= world.best) slot++;
+      return { option: slot, value: 1 };
+    }
+    case 'floodall':
+      // per-shard identity rule only: every non-best option gets a lure and
+      // the best gets a zero, from every identity, every round. On a single
+      // board with a global identity rule this degrades to `suppress`.
+      return { option: world.best, value: 0 };
+    default:
+      throw new Error(`unknown adversary ${strategy}`);
+  }
+}
+
+// Extra deposits a Byzantine identity can make in a sharded medium without a
+// global identity rule: one per other shard.
+function byzantineExtraDeposits(strategy, world, agentIndex, round, M) {
+  const out = [];
+  if (strategy === 'split') {
+    const first = byzantineDeposit(strategy, world, agentIndex, round, M);
+    out.push(
+      first.option === world.decoy
+        ? { option: world.best, value: 0 }
+        : { option: world.decoy, value: 1 },
+    );
+  } else if (strategy === 'floodall') {
+    for (let m = 0; m < M; m++) if (m !== world.best) out.push({ option: m, value: 1 });
+  }
+  return out;
+}
+
+// The evidence vector a Byzantine replica returns on every read.
+function byzantineVector(world, M, strategy) {
+  const v = new Array(M).fill(0.5);
+  v[world.best] = 0;
+  v[world.decoy] = 1;
+  if (strategy === 'spread' || strategy === 'floodall') {
+    for (let m = 0; m < M; m++) if (m !== world.best) v[m] = 1;
+  }
+  return v;
+}
+
+// Honest decision given an evidence vector (null entries mean "no evidence").
+function choose(evidence, contested, rng, cfg) {
+  const { eps, M } = cfg;
+  if (cfg.verify && contested.length > 0 && rng.float() < cfg.pv) {
+    return contested[rng.int(contested.length)];
+  }
+  if (rng.float() < eps) return rng.int(M);
+  let bestM = -1;
+  let bestV = -Infinity;
+  for (let m = 0; m < M; m++) {
+    const v = evidence[m] === null ? 0.5 : evidence[m]; // unknown = neutral prior
+    if (v > bestV || (v === bestV && rng.float() < 0.5)) {
+      bestV = v;
+      bestM = m;
+    }
+  }
+  return bestM;
+}
+
+function exploitChoice(evidence, M) {
+  let bestM = 0;
+  let bestV = -Infinity;
+  for (let m = 0; m < M; m++) {
+    const v = evidence[m] === null ? 0.5 : evidence[m];
+    if (v > bestV) {
+      bestV = v;
+      bestM = m;
+    }
+  }
+  return bestM;
+}
+
+// ---------------------------------------------------------------------------
+// Sliding-window store used by bound, broadcast and honest attested replicas.
+// Holds (identity, option, value) per round; aggregates by per-option median.
+// Enforces the identity rule: at most one deposit per identity per round.
+// ---------------------------------------------------------------------------
+class WindowStore {
+  constructor(M, window) {
+    this.M = M;
+    this.window = window;
+    this.rounds = []; // array of Map(identity -> {option, value})
+  }
+  beginRound() {
+    this.rounds.push(new Map());
+    if (this.rounds.length > this.window) this.rounds.shift();
+  }
+  deposit(identity, option, value) {
+    const cur = this.rounds[this.rounds.length - 1];
+    if (cur.has(identity)) return false; // identity rule: rejected
+    if (!(value >= 0 && value <= 1)) return false; // out-of-range deposit: rejected
+    cur.set(identity, { option, value });
+    return true;
+  }
+  aggregate() {
+    const per = Array.from({ length: this.M }, () => []);
+    for (const r of this.rounds) for (const d of r.values()) per[d.option].push(d.value);
+    const value = per.map((vals) => median(vals));
+    // dissent: share of identities whose deposit sits far from the option's
+    // median, plus the absolute count so a floor can be applied
+    const dissent = per.map((vals, m) => {
+      if (value[m] === null) return 0;
+      const far = vals.filter((v) => Math.abs(v - value[m]) > 0.3).length;
+      return far / vals.length;
+    });
+    const dissentCount = per.map((vals, m) =>
+      value[m] === null ? 0 : vals.filter((v) => Math.abs(v - value[m]) > 0.3).length,
+    );
+    return { value, dissent, dissentCount };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Protocols. Each exposes:
+//   beginRound()
+//   read(agent)  -> { evidence: M entries (number or null), contested: option indices }
+//   write(agent, option, value)
+//   byzWrite(agent, round)
+//   messagesPerAgentPerRound()
+// ---------------------------------------------------------------------------
+function makeProtocol(name, cfg, world, rng) {
+  const { M, N } = cfg;
+  switch (name) {
+    case 'stigmergy': {
+      // Quality pheromone: each deposit carries a value and unit weight, the
+      // board keeps a decayed weighted mean per option. Deposits are anonymous
+      // and uncapped, so a Byzantine agent's `amp` copies all count.
+      const sum = new Array(M).fill(0);
+      const weight = new Array(M).fill(0);
+      return {
+        beginRound() {
+          for (let m = 0; m < M; m++) {
+            sum[m] *= 1 - cfg.decay;
+            weight[m] *= 1 - cfg.decay;
+          }
+        },
+        read() {
+          // an anonymous board has no notion of dissent, so nothing is contested
+          const evidence = sum.map((s, m) => (weight[m] < 1e-9 ? null : s / weight[m]));
+          return { evidence, contested: [] };
+        },
+        write(_agent, option, value) {
+          sum[option] += value;
+          weight[option] += 1;
+        },
+        byzWrite(agent, round) {
+          const d = byzantineDeposit(cfg.adversary, world, agent, round, M);
+          sum[d.option] += d.value * cfg.amp;
+          weight[d.option] += cfg.amp;
+        },
+        messagesPerAgentPerRound: () => 2,
+      };
+    }
+    case 'bound': {
+      const store = new WindowStore(M, cfg.window);
+      let cache = null;
+      return {
+        beginRound() {
+          store.beginRound();
+          cache = null;
+        },
+        read() {
+          if (cache === null) cache = store.aggregate();
+          return { evidence: cache.value, contested: contestedFrom(cache.dissent, cache.dissentCount, cfg) };
+        },
+        write(agent, option, value) {
+          store.deposit(agent, option, value);
+        },
+        byzWrite(agent, round) {
+          const d = byzantineDeposit(cfg.adversary, world, agent, round, M);
+          store.deposit(agent, d.option, d.value);
+        },
+        messagesPerAgentPerRound: () => 2,
+      };
+    }
+    case 'broadcast': {
+      // All-to-all reliable broadcast means every honest agent ends the
+      // round with the same multiset of signed reports, so one shared store
+      // is semantically identical to N per-agent stores. The cost is counted
+      // analytically: N-1 sends and N-1 receives per agent per round.
+      const store = new WindowStore(M, cfg.window);
+      let cache = null;
+      return {
+        beginRound() {
+          store.beginRound();
+          cache = null;
+        },
+        read() {
+          if (cache === null) cache = store.aggregate();
+          return { evidence: cache.value, contested: contestedFrom(cache.dissent, cache.dissentCount, cfg) };
+        },
+        write(agent, option, value) {
+          store.deposit(agent, option, value);
+        },
+        byzWrite(agent, round) {
+          const d = byzantineDeposit(cfg.adversary, world, agent, round, M);
+          store.deposit(agent, d.option, d.value);
+        },
+        messagesPerAgentPerRound: () => 2 * (N - 1),
+      };
+    }
+    case 'attested': {
+      // Sharded, replicated medium. Cue m lives on a replica set R(m) of r
+      // nodes chosen pseudo-randomly at world creation, so the Byzantine share
+      // inside a shard follows the population share. A deposit about m goes to
+      // every replica in R(m); a read of m samples k replicas of R(m) and takes
+      // the per-option median of their answers. Every honest replica of a
+      // shard sees the same deposits, so one honest aggregate per shard per
+      // round is exact, not a shortcut. A Byzantine replica answers with the
+      // adversary's vector. The identity rule (one deposit per identity per
+      // round) is enforced per shard, because a shard cannot see deposits made
+      // to other shards; a Byzantine identity can therefore write once to
+      // every shard each round. This is the honest cost of sharding.
+      const r = Math.min(cfg.r, N);
+      const k = Math.min(cfg.k, r);
+      const shards = Array.from({ length: M }, () => rng.sample(N, r));
+      const stores = Array.from({ length: M }, () => new WindowStore(M, cfg.window));
+      const byzVec = {
+        value: byzantineVector(world, M, cfg.adversary),
+        dissent: new Array(M).fill(0),
+        dissentCount: new Array(M).fill(0),
+      };
+      let cache = null;
+      return {
+        beginRound() {
+          for (const st of stores) st.beginRound();
+          cache = null;
+        },
+        read() {
+          if (cache === null) cache = stores.map((st) => st.aggregate());
+          const evidence = new Array(M);
+          const dissent = new Array(M);
+          const dissentCount = new Array(M);
+          for (let m = 0; m < M; m++) {
+            const vals = [];
+            const dis = [];
+            const cnt = [];
+            for (const slot of rng.sample(r, k)) {
+              const node = shards[m][slot];
+              const a = world.isByz[node] ? byzVec : cache[m];
+              if (a.value[m] !== null) vals.push(a.value[m]);
+              dis.push(a.dissent[m]);
+              cnt.push(a.dissentCount[m]);
+            }
+            // require a quorum of answers before trusting a value
+            evidence[m] = vals.length * 2 > k ? median(vals) : null;
+            dissent[m] = median(dis);
+            dissentCount[m] = median(cnt);
+          }
+          return { evidence, contested: contestedFrom(dissent, dissentCount, cfg) };
+        },
+        write(agent, option, value) {
+          stores[option].deposit(agent, option, value);
+        },
+        byzWrite(agent, round) {
+          const d = byzantineDeposit(cfg.adversary, world, agent, round, M);
+          stores[d.option].deposit(agent, d.option, d.value);
+          if (!cfg.globalIdentity) {
+            // per-shard identity rule: other shards cannot see this deposit
+            for (const e of byzantineExtraDeposits(cfg.adversary, world, agent, round, M)) {
+              stores[e.option].deposit(agent, e.option, e.value);
+            }
+          }
+        },
+        // Counted on the same basis as broadcast: sends plus receives, averaged
+        // over all nodes. An agent sends one deposit to r replicas and k reads
+        // for each of M cues; the replicas, which are also nodes, receive the
+        // same traffic, so the per-node average is 2(r + M k). The average
+        // hides that the M r replica slots each carry N/M deposits and N k/r
+        // reads per round, which grows with N.
+        messagesPerAgentPerRound: () => 2 * (r + M * k),
+      };
+    }
+    default:
+      throw new Error(`unknown protocol ${name}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// One run
+// ---------------------------------------------------------------------------
+function run(cfg) {
+  const rng = makeRng(cfg.seed);
+  const world = makeWorld(cfg, rng);
+  const proto = makeProtocol(cfg.protocol, cfg, world, rng);
+  let firstRoundAtTarget = null;
+  let lastCorrect = 0;
+  // Private observation memory: what this agent itself saw, and when.
+  const ownValue = Array.from({ length: cfg.N }, () => new Float64Array(cfg.M));
+  const ownRound = Array.from({ length: cfg.N }, () => new Int32Array(cfg.M).fill(-1e9));
+  const effective = (i, round, evidence) => {
+    if (!cfg.memory) return evidence;
+    const out = evidence.slice();
+    for (let m = 0; m < cfg.M; m++) {
+      if (round - ownRound[i][m] <= cfg.window) out[m] = ownValue[i][m];
+    }
+    return out;
+  };
+  let rewardSum = 0;
+  let rewardCount = 0;
+
+  for (let round = 0; round < cfg.rounds; round++) {
+    proto.beginRound();
+    // Byzantine agents write first each round: the adversary is given the
+    // ordering advantage rather than the honest agents.
+    for (let i = 0; i < cfg.N; i++) if (world.isByz[i]) proto.byzWrite(i, round);
+
+    let correct = 0;
+    let honest = 0;
+    for (let i = 0; i < cfg.N; i++) {
+      if (world.isByz[i]) continue;
+      honest++;
+      const read = proto.read(i);
+      const evidence = effective(i, round, read.evidence);
+      if (exploitChoice(evidence, cfg.M) === world.best) correct++;
+      // do not spend verification on an option this agent checked itself recently
+      const contested = cfg.memory
+        ? read.contested.filter((m) => round - ownRound[i][m] > cfg.window)
+        : read.contested;
+      const option = choose(evidence, contested, rng, cfg);
+      const obs = clamp01(world.quality[option] + cfg.noise * rng.normal());
+      ownValue[i][option] = obs;
+      ownRound[i][option] = round;
+      proto.write(i, option, obs);
+      if (round >= cfg.rounds - 10) {
+        rewardSum += world.quality[option];
+        rewardCount++;
+      }
+    }
+    lastCorrect = honest === 0 ? 0 : correct / honest;
+    if (firstRoundAtTarget === null && lastCorrect >= 0.8) firstRoundAtTarget = round;
+  }
+
+  return {
+    protocol: cfg.protocol,
+    verify: cfg.verify,
+    memory: cfg.memory,
+    globalIdentity: cfg.globalIdentity,
+    N: cfg.N,
+    byz: cfg.byz,
+    adversary: cfg.adversary,
+    seed: cfg.seed,
+    correct: lastCorrect,
+    reward: rewardCount === 0 ? 0 : rewardSum / rewardCount,
+    roundsTo80: firstRoundAtTarget,
+    messages: proto.messagesPerAgentPerRound(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sweep: for every (protocol, N, byz) report the adversary's best strategy
+// averaged over seeds.
+// ---------------------------------------------------------------------------
+// Rows of the sweep. `broadcast` without verification shares its store
+// semantics with `bound` and is omitted; only the cost column would differ.
+const VARIANTS = [
+  { protocol: 'stigmergy', verify: false, globalIdentity: false, label: 'stigmergy' },
+  { protocol: 'bound', verify: false, globalIdentity: false, label: 'bound' },
+  { protocol: 'bound', verify: true, globalIdentity: false, label: 'bound + verify' },
+  { protocol: 'broadcast', verify: true, globalIdentity: false, label: 'broadcast + verify' },
+  { protocol: 'attested', verify: false, globalIdentity: false, label: 'attested' },
+  { protocol: 'attested', verify: true, globalIdentity: false, label: 'attested + verify' },
+  { protocol: 'attested', verify: true, globalIdentity: true, label: 'attested + verify + global id' },
+];
+
+function sweep(base) {
+  const Ns = base.sweepN;
+  const byzs = base.sweepByz;
+  const adversaries = ['flood', 'suppress', 'split', 'spread', 'floodall'];
+  const rows = [];
+  for (const variant of VARIANTS) {
+    const { protocol, verify, globalIdentity } = variant;
+    for (const N of Ns) {
+      for (const byz of byzs) {
+        let worst = null;
+        for (const adversary of adversaries) {
+          let correct = 0;
+          let reward = 0;
+          let messages = 0;
+          let rounds = 0;
+          let roundsKnown = 0;
+          for (let s = 0; s < base.seeds; s++) {
+            const r = run({ ...base, protocol, verify, globalIdentity, N, byz, adversary, seed: base.seed + s });
+            correct += r.correct;
+            reward += r.reward;
+            messages = r.messages;
+            if (r.roundsTo80 !== null) {
+              rounds += r.roundsTo80;
+              roundsKnown++;
+            }
+          }
+          const avg = {
+            protocol,
+            verify,
+            label: variant.label,
+            N,
+            byz,
+            adversary,
+            correct: correct / base.seeds,
+            reward: reward / base.seeds,
+            messages,
+            roundsTo80: roundsKnown === base.seeds ? rounds / base.seeds : null,
+          };
+          if (worst === null || avg.correct < worst.correct) worst = avg;
+          if (byz === 0) break; // no adversary present; strategies are moot
+        }
+        rows.push(worst);
+      }
+    }
+  }
+  return rows;
+}
+
+const ADV_LETTER = { flood: 'f', suppress: 's', split: 'p', spread: 'r', floodall: 'a' };
+
+function fmtPct(x) {
+  return `${Math.round(x * 100)}%`;
+}
+
+function renderTable(rows, base) {
+  const lines = [];
+  lines.push(`Regime: private observation memory ${base.memory ? 'ON (cues verifiable by acting)' : 'OFF (agents trust the medium)'}.`);
+  lines.push('');
+  lines.push(
+    `Parameters: M=${base.M} options, rounds=${base.rounds}, window=${base.window}, ` +
+      `r=${base.r}, k=${base.k}, amp=${base.amp}, eps=${base.eps}, pv=${base.pv}, dissentMin=${base.dissentMin}, dissentFrac=${base.dissentFrac}, noise=${base.noise}, ` +
+      `decay=${base.decay}, seeds=${base.seeds} (base seed ${base.seed}).`,
+  );
+  lines.push('');
+  lines.push('Correct = share of honest agents whose exploit choice is the truly best option at the final round,');
+  lines.push('averaged over seeds, under the adversary strategy that hurt that cell most.');
+  lines.push('Msgs = messages sent plus received per agent per round.');
+  lines.push('');
+  const byzs = base.sweepByz;
+  for (const N of base.sweepN) {
+    lines.push(`### N = ${N}`);
+    lines.push('');
+    lines.push(`| Protocol | Msgs | ${byzs.map((b) => `byz ${fmtPct(b)}`).join(' | ')} |`);
+    lines.push(`|---|---|${byzs.map(() => '---').join('|')}|`);
+    for (const v of VARIANTS) {
+      const cells = byzs.map((b) => {
+        const r = rows.find((x) => x.label === v.label && x.N === N && x.byz === b);
+        return `${fmtPct(r.correct)}${r.adversary && b > 0 ? ` (${ADV_LETTER[r.adversary]})` : ''}`;
+      });
+      const r0 = rows.find((x) => x.label === v.label && x.N === N);
+      lines.push(`| ${v.label} | ${r0.messages} | ${cells.join(' | ')} |`);
+    }
+    lines.push('');
+    lines.push(`Honest reward over the last 10 rounds, as a share of the optimum, same cells:`);
+    lines.push('');
+    lines.push(`| Protocol | ${byzs.map((b) => `byz ${fmtPct(b)}`).join(' | ')} |`);
+    lines.push(`|---|${byzs.map(() => '---').join('|')}|`);
+    for (const v of VARIANTS) {
+      const cells = byzs.map((b) => {
+        const r = rows.find((x) => x.label === v.label && x.N === N && x.byz === b);
+        return fmtPct(r.reward);
+      });
+      lines.push(`| ${v.label} | ${cells.join(' | ')} |`);
+    }
+    lines.push('');
+  }
+  lines.push('Letter after a cell is the worst-case adversary strategy for that cell: (f)lood the decoy, (s)uppress the best option, s(p)lit, sp(r)ead one lure per identity over every non-best option, or flood (a)ll shards (per-shard identity rule only).');
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+const { values: args } = parseArgs({
+  options: {
+    help: { type: 'boolean', default: false },
+    sweep: { type: 'boolean', default: false },
+    json: { type: 'boolean', default: false },
+    protocol: { type: 'string', default: 'attested' },
+    verify: { type: 'boolean', default: false },
+    memory: { type: 'boolean', default: false },
+    pv: { type: 'string', default: '0.3' },
+    dissentMin: { type: 'string', default: '2' },
+    dissentFrac: { type: 'string', default: '0.02' },
+    globalIdentity: { type: 'boolean', default: false },
+    adversary: { type: 'string', default: 'split' },
+    N: { type: 'string', default: '200' },
+    byz: { type: 'string', default: '0.2' },
+    seed: { type: 'string', default: '7' },
+    seeds: { type: 'string', default: '3' },
+    rounds: { type: 'string', default: '60' },
+    M: { type: 'string', default: '8' },
+    k: { type: 'string', default: '15' },
+    r: { type: 'string', default: '40' },
+    amp: { type: 'string', default: '10' },
+    eps: { type: 'string', default: '0.1' },
+    noise: { type: 'string', default: '0.1' },
+    decay: { type: 'string', default: '0.1' },
+    window: { type: 'string', default: '10' },
+    sweepN: { type: 'string', default: '60,250,1000' },
+    sweepByz: { type: 'string', default: '0,0.05,0.1,0.2,0.3,0.4,0.45' },
+  },
+});
+
+if (args.help) {
+  console.log(`node simulate [--sweep] [--json] [--protocol stigmergy|bound|broadcast|attested]
+  [--verify] [--memory] [--globalIdentity] [--pv p] [--dissentMin d] [--dissentFrac f]
+  [--adversary flood|suppress|split|spread|floodall] [--N n] [--byz f] [--seed s] [--seeds n]
+  [--rounds t] [--M m] [--k k] [--r r] [--amp a] [--eps e] [--noise sd] [--decay d]
+  [--window w] [--sweepN a,b,c] [--sweepByz f1,f2,...]`);
+  process.exit(0);
+}
+
+const base = {
+  protocol: args.protocol,
+  verify: args.verify,
+  memory: args.memory,
+  pv: Number(args.pv),
+  dissentMin: Number(args.dissentMin),
+  dissentFrac: Number(args.dissentFrac),
+  globalIdentity: args.globalIdentity,
+  adversary: args.adversary,
+  N: Number(args.N),
+  byz: Number(args.byz),
+  seed: Number(args.seed),
+  seeds: Number(args.seeds),
+  rounds: Number(args.rounds),
+  M: Number(args.M),
+  k: Number(args.k),
+  r: Number(args.r),
+  amp: Number(args.amp),
+  eps: Number(args.eps),
+  noise: Number(args.noise),
+  decay: Number(args.decay),
+  window: Number(args.window),
+  sweepN: args.sweepN.split(',').map(Number),
+  sweepByz: args.sweepByz.split(',').map(Number),
+};
+
+if (args.sweep) {
+  const out = [];
+  for (const memory of [false, true]) {
+    const cfg = { ...base, memory };
+    const rows = sweep(cfg);
+    out.push(args.json ? rows : `## Memory ${memory ? 'on' : 'off'}\n\n${renderTable(rows, cfg)}`);
+  }
+  console.log(args.json ? JSON.stringify(out.flat(), null, 2) : out.join('\n\n'));
+} else {
+  const r = run(base);
+  console.log(JSON.stringify(r, null, 2));
+}

@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+import { cp, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const source = dirname(fileURLToPath(import.meta.url));
+const temp = await mkdtemp(join(tmpdir(), 'trust-ratchet-'));
+await cp(source, temp, { recursive: true });
+const boundaryPath = join(temp, 'boundary-fields.json');
+const boundary = JSON.parse(await readFile(boundaryPath, 'utf8'));
+boundary.fields.push('networkScope');
+await writeFile(boundaryPath, `${JSON.stringify(boundary, null, 2)}\n`);
+
+const result = spawnSync(process.execPath, [join(temp, 'check')], { encoding: 'utf8' });
+if (result.status === 0) {
+  console.error('DEMONSTRATION FAILED: the changed boundary was accepted');
+  process.exit(1);
+}
+
+if (result.status !== 1 || !result.stderr.includes('RATCHET FAILED: boundary-fields.json changed')) {
+  console.error(`DEMONSTRATION FAILED: unexpected exit status ${result.status}`);
+  console.error(result.stderr);
+  process.exit(1);
+}
+
+console.log('DEMONSTRATION PASSED: an unreviewed boundary widening failed the ratchet');
+console.log(result.stderr.trim());

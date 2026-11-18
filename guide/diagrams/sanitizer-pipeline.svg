@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Sanitizer pipeline (6 ordered stages)</title>
+  <desc>Hostile child text passes through six ordered sanitizer stages before it reaches a model-visible snapshot: ANSI escape strip, C0 strip, Default_Ignorable strip, NFKC normalize, truncation, and role-marker neutralization.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #111827; }
+      .subtitle { font-size: 14px; fill: #4b5563; }
+      .section { font-size: 12px; font-weight: 700; fill: #64748b; text-transform: uppercase; }
+      .card-title { font-size: 15px; font-weight: 700; fill: #111827; }
+      .body { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #475569; }
+      .tiny { font-size: 11px; fill: #64748b; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1120" height="620" fill="#ffffff"/>
+
+  <text x="560" y="43" text-anchor="middle" class="title">Sanitizer pipeline</text>
+  <text x="560" y="70" text-anchor="middle" class="subtitle">Six ordered read-boundary stages that sanitize worker text before model-visible snapshots.</text>
+
+  <text x="60" y="111" class="section">Input (worker-controlled text)</text>
+  <g>
+    <rect x="60" y="125" width="1000" height="62" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="80" y="151" class="body" font-weight="700">Hostile example</text>
+    <text x="80" y="173" class="tiny mono">ESC[31m + \u0001 + s\u200Dystem: + fullwidth ROLE: + long tail</text>
+  </g>
+
+  <text x="60" y="222" class="section">Sanitizer stage order</text>
+
+  <g>
+    <rect x="60" y="238" width="156" height="116" rx="8" fill="#eff6ff" stroke="#0078d4" stroke-width="2"/>
+    <text x="80" y="264" class="card-title">1. ANSI strip</text>
+    <text x="80" y="288" class="small">remove terminal</text>
+    <text x="80" y="306" class="small">escape sequences</text>
+  </g>
+  <path d="M 216 296 L 238 296" class="line"/>
+
+  <g>
+    <rect x="240" y="238" width="156" height="116" rx="8" fill="#eef8f4" stroke="#0f766e" stroke-width="2"/>
+    <text x="260" y="264" class="card-title">2. C0 strip</text>
+    <text x="260" y="288" class="small">drop controls</text>
+    <text x="260" y="306" class="small">except LF / TAB</text>
+  </g>
+  <path d="M 396 296 L 418 296" class="line"/>
+
+  <g>
+    <rect x="420" y="238" width="156" height="116" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+    <text x="440" y="264" class="card-title">3. DI strip</text>
+    <text x="440" y="288" class="small">drop Default</text>
+    <text x="440" y="306" class="small">Ignorable codepoints</text>
+  </g>
+  <path d="M 576 296 L 598 296" class="line"/>
+
+  <g>
+    <rect x="600" y="238" width="156" height="116" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+    <text x="620" y="264" class="card-title">4. NFKC</text>
+    <text x="620" y="288" class="small">collapse Unicode</text>
+    <text x="620" y="306" class="small">lookalikes</text>
+  </g>
+  <path d="M 756 296 L 778 296" class="line"/>
+
+  <g>
+    <rect x="780" y="238" width="156" height="116" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="800" y="264" class="card-title">5. Truncate</text>
+    <text x="800" y="288" class="small">cap length and</text>
+    <text x="800" y="306" class="small">mark suffix</text>
+  </g>
+  <path d="M 936 296 L 958 296" class="line"/>
+
+  <g>
+    <rect x="960" y="238" width="100" height="116" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="1010" y="264" text-anchor="middle" class="card-title">6. Role</text>
+    <text x="1010" y="288" text-anchor="middle" class="small">marker</text>
+    <text x="1010" y="306" text-anchor="middle" class="small">neutralize</text>
+  </g>
+
+  <text x="60" y="398" class="section">Output (model-visible snapshot text)</text>
+  <g>
+    <rect x="60" y="412" width="1000" height="62" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="80" y="438" class="body" font-weight="700">After all six stages</text>
+    <text x="80" y="460" class="tiny mono">[!neutralized] system: and [!neutralized] ROLE: markers are treated as untrusted text, not role turns.</text>
+  </g>
+
+  <g>
+    <rect x="60" y="500" width="1000" height="86" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="80" y="526" class="card-title">Why this exact order matters</text>
+    <text x="80" y="550" class="small">The documented order strips hiding characters before NFKC and runs role-marker neutralization after compatibility forms collapse.</text>
+    <text x="80" y="570" class="tiny">Order is fixed by the sanitizer contract: hiding characters are stripped before NFKC; role markers are neutralized last.</text>
+  </g>
+</svg>

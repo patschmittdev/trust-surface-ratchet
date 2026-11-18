@@ -1,0 +1,30 @@
+File-class license map
+
+Prose (guide/**/*.md) and SVG diagrams (guide/diagrams/*.svg) are CC BY 4.0,
+unless a file says otherwise.
+
+Executable code, scripts, Lean source, machine-readable fixtures, and build configuration
+under guide/ are Apache-2.0 under the root LICENSE. This includes:
+- guide/proofs/**/*.lean, lakefile.lean, lake-manifest.json, and lean-toolchain;
+- guide/scripts/*.mjs;
+- all test files under guide/ ending in `.mjs` with `.test` before the extension, including the simulator and check-script tests;
+- guide/examples/ratchet-fixture/{check,demonstrate-regression,manifest.json,boundary-fields.json};
+- guide/research/bft-stigmergy/simulate;
+- .gitignore files.
+
+CC BY 4.0 license notice
+
+Except where otherwise noted, the prose and SVG diagrams identified above are licensed under the Creative Commons Attribution 4.0 International License.
+
+Attribution: Patrick Schmitt.
+
+SPDX-License-Identifier: Apache-2.0 AND CC-BY-4.0
+
+You may share and adapt the material for any purpose, including commercial use, if you provide
+appropriate attribution and indicate whether changes were made.
+
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+
+This license notice does not apply to third-party trademarks, third-party links, or material
+that is only referenced but not included in this repository.
+

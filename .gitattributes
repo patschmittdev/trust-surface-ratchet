@@ -1,0 +1,2 @@
+# Hash-checked fixtures in guide/examples/ratchet-fixture/ must keep LF bytes on every OS.
+* text=auto eol=lf
