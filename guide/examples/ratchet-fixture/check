@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = dirname(fileURLToPath(import.meta.url));
+const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
+const sourcePath = join(root, manifest.source);
+const actual = createHash('sha256').update(readFileSync(sourcePath)).digest('hex');
+
+if (actual !== manifest.sha256) {
+  console.error(`RATCHET FAILED: ${manifest.source} changed`);
+  console.error(`  expected: ${manifest.sha256}`);
+  console.error(`  actual:   ${actual}`);
+  console.error('Review the boundary change, then refresh the manifest deliberately.');
+  process.exit(1);
+}
+
+console.log(`RATCHET PASSED: ${manifest.source} matches the reviewed manifest`);

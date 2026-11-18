@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 660" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Per-job worktree lifecycle</title>
+  <desc>Each delegation owns a fresh git worktree. Teardown checks whether to keep the worktree after a cancellation or error, and whether branch deletion is configured, before forced worktree removal, optional branch deletion, and best-effort parent directory cleanup.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #111827; }
+      .subtitle { font-size: 14px; fill: #4b5563; }
+      .section { font-size: 12px; font-weight: 700; fill: #64748b; text-transform: uppercase; }
+      .card-title { font-size: 17px; font-weight: 700; fill: #111827; }
+      .body { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #475569; }
+      .tiny { font-size: 11px; fill: #64748b; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .muted-line { stroke: #94a3b8; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1120" height="660" fill="#ffffff"/>
+
+  <text x="560" y="43" text-anchor="middle" class="title">Per-job worktree lifecycle</text>
+  <text x="560" y="70" text-anchor="middle" class="subtitle">Fresh worktree per delegation; cleanup is gated by keep flags and optional branch deletion.</text>
+
+  <text x="60" y="111" class="section">Spawn and work</text>
+
+  <g>
+    <rect x="60" y="125" width="190" height="104" rx="8" fill="#eff6ff" stroke="#0078d4" stroke-width="2"/>
+    <text x="155" y="153" text-anchor="middle" class="card-title">delegate</text>
+    <text x="155" y="179" text-anchor="middle" class="body mono">git worktree add</text>
+    <text x="155" y="206" text-anchor="middle" class="tiny mono">create isolated workspace</text>
+  </g>
+
+  <path d="M 250 177 L 310 177" class="line"/>
+
+  <g>
+    <rect x="310" y="125" width="190" height="104" rx="8" fill="#eef8f4" stroke="#0f766e" stroke-width="2"/>
+    <text x="405" y="153" text-anchor="middle" class="card-title">child cwd</text>
+    <text x="405" y="179" text-anchor="middle" class="body mono">cwd = worktree.path</text>
+    <text x="405" y="206" text-anchor="middle" class="tiny">parent repo untouched</text>
+  </g>
+
+  <path d="M 500 177 L 560 177" class="line"/>
+
+  <g>
+    <rect x="560" y="125" width="190" height="104" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+    <text x="655" y="153" text-anchor="middle" class="card-title">work</text>
+    <text x="655" y="179" text-anchor="middle" class="body mono">edits + commits</text>
+    <text x="655" y="206" text-anchor="middle" class="tiny">diff read of worktree</text>
+  </g>
+
+  <path d="M 750 177 L 810 177" class="line"/>
+
+  <g>
+    <rect x="810" y="125" width="250" height="104" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+    <text x="935" y="153" text-anchor="middle" class="card-title">job stops</text>
+    <text x="935" y="179" text-anchor="middle" class="body mono">idle / errored / cancelled</text>
+    <text x="935" y="206" text-anchor="middle" class="tiny">cleanup policy decides next step</text>
+  </g>
+
+  <text x="60" y="274" class="section">Teardown decision</text>
+
+  <g>
+    <polygon points="560,286 690,354 560,422 430,354" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+    <text x="560" y="338" text-anchor="middle" class="body" font-weight="700">preserve?</text>
+    <text x="560" y="360" text-anchor="middle" class="small mono">keep on cancel</text>
+    <text x="560" y="380" text-anchor="middle" class="small mono">keep on error</text>
+    <text x="450" y="447" text-anchor="middle" class="tiny mono">read host-computed diff</text>
+  </g>
+
+  <path d="M 935 229 L 935 354 L 690 354" class="line"/>
+
+  <path d="M 430 354 L 230 354" class="line"/>
+  <text x="325" y="342" text-anchor="middle" class="tiny mono">yes</text>
+  <g>
+    <rect x="60" y="306" width="170" height="96" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="145" y="338" text-anchor="middle" class="card-title">preserve</text>
+    <text x="145" y="364" text-anchor="middle" class="small">host can inspect</text>
+    <text x="145" y="386" text-anchor="middle" class="tiny mono">no teardown yet</text>
+  </g>
+
+  <path d="M 560 422 L 560 462" class="line"/>
+  <text x="582" y="445" class="tiny mono">no</text>
+
+  <g>
+    <rect x="390" y="462" width="340" height="96" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="410" y="492" class="card-title">remove worktree</text>
+    <text x="410" y="518" class="body mono">git worktree remove --force</text>
+    <text x="410" y="540" class="tiny mono">remove workspace safely</text>
+  </g>
+
+  <path d="M 730 510 L 800 510" class="line"/>
+
+  <g>
+    <rect x="800" y="462" width="260" height="96" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/>
+    <text x="820" y="492" class="card-title">optional branch delete</text>
+    <text x="820" y="518" class="small mono">delete branch on teardown</text>
+    <text x="820" y="540" class="tiny mono">delete only when configured</text>
+  </g>
+
+  <path d="M 560 558 L 560 610" class="line"/>
+  <g>
+    <rect x="300" y="610" width="520" height="36" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="560" y="633" text-anchor="middle" class="small">After removal, parent cleanup is best-effort and must only touch host-owned worktree parents.</text>
+  </g>
+</svg>

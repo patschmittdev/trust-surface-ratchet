@@ -1,0 +1,66 @@
+name: Experience report
+description: Share practical experience evaluating or applying the pattern
+title: "[Experience] "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Experience reports help evaluate setup cost, false positives, exemptions, useful caught changes, and reasons not to adopt the pattern. Describe the experience without sharing private code.
+  - type: input
+    id: context
+    attributes:
+      label: Project context
+      description: Language, repository size, and general application type.
+      placeholder: "TypeScript service, about 50,000 lines"
+    validations:
+      required: true
+  - type: dropdown
+    id: evaluation
+    attributes:
+      label: Evaluation result
+      options:
+        - "Adopted"
+        - "Piloted but not adopted"
+        - "Evaluated without a pilot"
+    validations:
+      required: true
+  - type: textarea
+    id: surface
+    attributes:
+      label: Trust surface considered
+      description: What finite boundary did you evaluate, and why did its membership matter?
+    validations:
+      required: true
+  - type: input
+    id: setup-time
+    attributes:
+      label: Approximate evaluation time
+      placeholder: "Two hours"
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What useful signal or unnecessary friction did you observe?
+    validations:
+      required: true
+  - type: textarea
+    id: maintenance
+    attributes:
+      label: False positives, exemptions, and maintenance
+      description: What needed tuning, or what prevented adoption?
+    validations:
+      required: true
+  - type: dropdown
+    id: reuse
+    attributes:
+      label: Would you evaluate the pattern again?
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure yet"
+    validations:
+      required: true

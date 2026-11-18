@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 660" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Snapshot boundary: hidden-job filter before host-only redaction</title>
+  <desc>Model-facing snapshot reads first filter hidden jobs, then strip top-level host-only fields. Nested trust invariant contents stay inside the removed parent field rather than being redacted one by one.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #111827; }
+      .subtitle { font-size: 14px; fill: #4b5563; }
+      .section { font-size: 12px; font-weight: 700; fill: #64748b; text-transform: uppercase; }
+      .card-title { font-size: 17px; font-weight: 700; fill: #111827; }
+      .body { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #475569; }
+      .tiny { font-size: 11px; fill: #64748b; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .muted { fill: #64748b; }
+    </style>
+  </defs>
+
+  <rect width="1120" height="660" fill="#ffffff"/>
+
+  <text x="560" y="43" text-anchor="middle" class="title">Snapshot boundary</text>
+  <text x="560" y="70" text-anchor="middle" class="subtitle">Hidden-job visibility is filtered first; top-level host-only fields are stripped second.</text>
+
+  <text x="60" y="111" class="section">Host-side store snapshot</text>
+  <g>
+    <rect x="60" y="125" width="280" height="310" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="80" y="154" class="card-title">raw snapshot</text>
+    <text x="80" y="176" class="tiny">host store status / list</text>
+
+    <rect x="80" y="194" width="240" height="32" rx="4" fill="#eff6ff" stroke="#0078d4"/>
+    <text x="92" y="215" class="body mono">job id, session id, status</text>
+
+    <rect x="80" y="232" width="240" height="32" rx="4" fill="#eff6ff" stroke="#0078d4"/>
+    <text x="92" y="253" class="body mono">cwd, model, event log</text>
+
+    <rect x="80" y="270" width="240" height="32" rx="4" fill="#fff7ed" stroke="#c2410c"/>
+    <text x="92" y="291" class="body mono">trust invariant {...}</text>
+
+    <rect x="80" y="308" width="240" height="32" rx="4" fill="#fff7ed" stroke="#c2410c"/>
+    <text x="92" y="329" class="body mono">system preamble, usage</text>
+
+    <rect x="80" y="346" width="240" height="32" rx="4" fill="#fff7ed" stroke="#c2410c"/>
+    <text x="92" y="367" class="body mono">hidden parent, runtime, audit</text>
+
+    <text x="80" y="405" class="small">Blue rows can cross. Orange rows are</text>
+    <text x="80" y="423" class="small">top-level host-only fields.</text>
+  </g>
+
+  <path d="M 340 280 L 410 280" class="line"/>
+
+  <text x="410" y="111" class="section">1. Visibility gate</text>
+  <g>
+    <rect x="410" y="125" width="280" height="136" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+    <text x="430" y="154" class="card-title">hidden-job filter</text>
+    <text x="430" y="178" class="small"><tspan class="mono">visible check</tspan> for list reads</text>
+    <text x="430" y="198" class="small"><tspan class="mono">mask as unknown</tspan> for status/diff</text>
+    <text x="430" y="218" class="small"><tspan class="mono">hidden-id check</tspan> for wait arrays</text>
+    <text x="430" y="244" class="tiny">host visibility gate</text>
+  </g>
+
+  <path d="M 630 261 L 630 310" class="line"/>
+
+  <text x="410" y="300" class="section">2. Top-level redaction</text>
+  <g>
+    <rect x="410" y="314" width="280" height="272" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+    <text x="430" y="342" class="card-title">host-only fields</text>
+    <text x="430" y="366" class="tiny">stripped at model boundary</text>
+
+    <text x="430" y="396" class="small mono">actor identity</text>
+    <text x="555" y="396" class="small mono">trust tier</text>
+    <text x="430" y="416" class="small mono">system preamble</text>
+    <text x="555" y="416" class="small mono">runtime family</text>
+    <text x="430" y="436" class="small mono">trust invariant</text>
+    <text x="555" y="436" class="small mono">hidden parent</text>
+    <text x="430" y="456" class="small mono">usage</text>
+    <text x="555" y="456" class="small mono">budget limit</text>
+    <text x="430" y="476" class="small mono">trace context</text>
+    <text x="555" y="476" class="small mono">runtime</text>
+    <text x="430" y="496" class="small mono">audit path</text>
+
+    <text x="430" y="532" class="small">These names are deleted from the top-level</text>
+    <text x="430" y="550" class="small">snapshot before model-facing tool output.</text>
+  </g>
+
+  <path d="M 690 450 L 760 450" class="line"/>
+
+  <text x="760" y="111" class="section">Model-facing tool result</text>
+  <g>
+    <rect x="760" y="125" width="300" height="310" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+    <text x="780" y="154" class="card-title">visible snapshot</text>
+    <text x="780" y="176" class="tiny">status / list / wait reads</text>
+
+    <rect x="780" y="194" width="260" height="32" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="792" y="215" class="body mono">job id, session id, status</text>
+
+    <rect x="780" y="232" width="260" height="32" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="792" y="253" class="body mono">model, cwd, event log</text>
+
+    <rect x="780" y="270" width="260" height="32" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="792" y="291" class="body mono">last check, scope, intent</text>
+
+    <rect x="780" y="308" width="260" height="32" rx="4" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="792" y="329" class="body mono">sequence, pending approval</text>
+
+    <text x="780" y="376" class="small">No hidden snapshots cross this boundary.</text>
+    <text x="780" y="398" class="small">No top-level host-only fields remain.</text>
+  </g>
+
+  <g>
+    <rect x="60" y="606" width="1000" height="36" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+    <text x="80" y="629" class="small"><tspan font-weight="700">Nested trust invariant:</tspan> fields such as host identifier and capability hash live inside <tspan class="mono">trust invariant</tspan>; removing that top-level field removes the nested object from the model surface.</text>
+  </g>
+</svg>
