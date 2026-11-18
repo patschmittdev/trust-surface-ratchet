@@ -68,7 +68,7 @@ option at 1.
 These are the limits of the model. Each one is a way the real answer could be
 worse than the table.
 
-1. **Adaptive adversary.** The three strategies are fixed. An adversary that
+1. **Adaptive adversary.** The five strategies are fixed. An adversary that
    learns the honest policy could, for example, report the best option as
    merely mediocre instead of worthless, which reduces dissent below the
    threshold and evades verification. The dissent test is a fixed distance from

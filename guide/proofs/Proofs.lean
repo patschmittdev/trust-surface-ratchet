@@ -21,8 +21,8 @@
 --                                       injective over the nine-axis
 --                                       invariant, SHA-256
 --                                       collision-resistant). Headline
---                                       theorem: distinct invariants
---                                       partition distinct pool slots.
+--                                       theorem: distinct invariants have distinct hashes.
+--                                       Runtime pool partitioning is not established.
 --
 -- See proofs/README.md for the modeling approach, what the proof
 -- effort does and does NOT cover, and how a reviewer who has never

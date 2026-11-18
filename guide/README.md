@@ -42,7 +42,14 @@ model's parameters and assumptions; these are findings, not recipes.
 Code is Apache-2.0; guide prose and diagrams are CC BY 4.0. See [NOTICE](../NOTICE)
 and [LICENSE](LICENSE).
 
-The neutrality guard scans repository text and paths using the newline- or comma-separated
-`NEUTRALITY_DENYLIST` secret; public rules cover the guide. Values are withheld unless
-`NEUTRALITY_SHOW_VALUES=true`. Non-fork pushes require the list; local runs can use
+The neutrality guard applies the newline- or comma-separated private
+`NEUTRALITY_DENYLIST` repo-wide to text and paths. Entries cannot span lines;
+identifier entries match identifier forms in any case, with `_`/`-` separators,
+embedded parts, and affixes, within a single whitespace-delimited word. Entries
+written with a space or hyphen also match spaced prose. A `=` prefix makes an
+entry whole-word (no affixes). Public pattern rules apply to guide text
+files by extension, excluding guide/scripts. Whenever a list is configured,
+all matched values are withheld unless `NEUTRALITY_SHOW_VALUES=true`;
+matching paths are also withheld. Fork pull requests do not receive the list.
+Pushes to non-fork repositories require it; local runs can set
 `NEUTRALITY_REQUIRE_DENYLIST=true` to require it.

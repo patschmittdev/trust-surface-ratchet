@@ -1,5 +1,8 @@
 # Memo: what composes, what does not, and why
 
+Cost figures are nominal honest-traffic costs, excluding adversary-generated
+traffic; they do not measure total traffic under attack.
+
 Spike result, 2026-09-09, revised after an independent same-model-family review.
 Evidence: [prior art](prior-art.md), [results](results.md),
 [threat model](threat-model.md), [critique](critique.md).
@@ -19,8 +22,8 @@ a trusted board here, at sixty to a thousand times the message cost.
 
 Identity-bound deposits, visible dissent, conflict-directed verification and recent
 personal observations convert deception into an attention tax, not a BFT tolerance
-bound. Reward loss is small through 20 percent Byzantine identities, about a quarter
-at 30 percent and about 40 percent at 45 percent. Its size depends on lurable cues,
+bound. Reward is 77 to 89 percent of optimum at 5 through 20 percent Byzantine identities,
+66 to 87 percent at 30 percent and 59 to 60 percent at 45 percent. Its size depends on lurable cues,
 honest verifiers per cue and observation lifetime.
 
 Sharding alone breaks global identity accounting. A static attacker writing to every
@@ -53,8 +56,8 @@ its implementation and cost are unresolved.
 - **Conflict-directed verification:** spending share `pv` on contested, recently
   unchecked cues gives the trusting regime an upper transition edge
   `b < pv / (1 + pv)`, about 23 percent by default. Observations sit several
-  points below this across populations. Reward falls from 94 to about 70 percent
-  of optimum while it holds; increasing verification spends more effort.
+  points below this across populations. Reward is 70 to 92 percent of optimum at 5 through 20 percent Byzantine
+  across the board and global-identity sharded medium, against 94 to 95 without attackers; increasing verification spends more effort.
 - **Private observation:** acting on a cue must reveal its truth, and recent
   observations override the medium. Single-lure loss saturates around 10 percent
   Byzantine identities at one lured round per window. With eight options,
@@ -62,7 +65,7 @@ its implementation and cost are unresolved.
   rounds. A thirty-round window restores the single-board figure; sixteen
   options halves it. A within-threshold lie does no worse than honest noise
   because agents on the best cue refresh memory each round.
-- **Sampling and sharding:** small replica sets give flat population-average
+- **Sampling and sharding:** small replica sets give flat nominal honest-traffic population-average
   per-node cost from 60 to 1,000 agents, with a broadcast crossover around 160
   on a sends-plus-receives basis. Byzantine replicas answer with attacking
   vectors, reducing tolerance; fixed replica slots carry load growing with
@@ -87,7 +90,7 @@ Deception becomes an attention tax only when acting reveals truth.
 ## What this does not show
 
 - Novelty: swarm-blockchain work dates to 2018, ledger-state work formalises it
-  in 2026, and sharding and shilling attacks have prior literature. Only two
+  in 2026, and sharding and shilling attacks have prior literature. Three
   abstract open items remain in [prior art](prior-art.md).
 - Transferable numbers: five hand-picked static strategies, synchronous rounds,
   honest shard assignment, identities scarce by fiat, one-round verification,
@@ -95,7 +98,7 @@ Deception becomes an attention tax only when acting reveals truth.
   matters. With a runner-up at 0.9, honest correctness is only 76 to 79 percent with no adversary at all.
 - Unlimited scaling: capacity, consistency and per-replica load remain limits;
   stigmergic swarms can perform worse than random walkers at high density.
-  Only flat average per-node cost is supported here.
+  Only flat nominal honest-traffic average per-node cost is supported here.
 
 ## What to do next, if anything
 

@@ -11,7 +11,7 @@
 -- ------------
 --
 -- A worker pool can partition connections by `capabilityHash`. Two
--- delegations share a pool slot iff their
+-- modeled delegations share a capability hash iff their
 -- invariant axes (tenant identifier, permission mode, model, trust tier,
 -- ancestry digest, directive digest, binary fingerprint,
 -- actor identity, runtime family) are identical -- because their
@@ -37,7 +37,7 @@
 -- --------------------
 --
 -- We axiomatize the cryptographic + encoding layer exactly as
--- AuditChain.lean did for the audit chain, then prove the runtime guarantee
+-- AuditChain.lean did for the audit chain, then prove hash injectivity under those axioms
 -- as a one-line composition:
 --
 --   * `encInvariant : Invariant → Bytes` -- canonical-JSON encoding
@@ -50,8 +50,8 @@
 --
 --   * `capabilityHash_injective`            (HEADLINE:
 --                                            distinct invariants
---                                            partition distinct pool
---                                            slots)
+--                                            have distinct hashes; runtime
+--                                            pools are not established)
 --   * `capabilityHash_eq_iff_axes_eq`       (iff
 --                                            characterization;
 --                                            useful for runtime
@@ -71,7 +71,7 @@
 --   * Cross-axis encoding equivalences (e.g. two different
 --     actor identity shapes encoding to the same canonical-JSON
 --     output) are subsumed by `encInvariant_injective`; if that
---     axiom is violated the runtime guarantee fails with it, which
+--     axiom is violated the modeled hash guarantee fails with it, which
 --     is the operational read of pipe-join style collision bugs.
 
 namespace TrustSurface.CapabilityHash
@@ -104,7 +104,7 @@ The nine partition-defining axes:
   9. runtime family            -- runtime family id (or "")
 
 Modeled as opaque because we never inspect their internal structure;
-the partition guarantee only requires that distinct invariants
+the modeled hash guarantee requires that distinct invariants
 encode to distinct bytes.
 -/
 axiom Invariant : Type
@@ -123,7 +123,7 @@ axiom H : Bytes → Hash
 
 Two axioms; reused conceptually from AuditChain.lean (`AuditChain.lean`).
 Each names the security assumption it depends on; if either fails,
-the partition guarantee fails with it.
+the modeled hash guarantee fails with it.
 -/
 
 /--
@@ -178,12 +178,12 @@ theorem capabilityHash_injective
   have henc : encInvariant i₁ = encInvariant i₂ := H_collision_resistant _ _ h
   exact encInvariant_injective _ _ henc
 
-/-! ## iff characterization of pool-slot sharing -/
+/-! ## iff characterization of hash equality -/
 
 /--
-**pool-slot sharing iff invariant equality.** Two
-invariants share a `capabilityHash` (and therefore a factory-pool
-slot, by the runtime's lookup-by-hash policy) iff they are equal.
+**Hash equality iff invariant equality under the encoding and hash-injectivity
+axioms.** Equal capability hashes imply equal invariants.
+Runtime pool partitioning is not established by this model.
 
 Combines `capabilityHash_injective` (the forward direction proved
 above) with the trivial `congrArg` direction (equal invariants

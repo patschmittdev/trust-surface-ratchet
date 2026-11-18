@@ -95,7 +95,7 @@ Finding: missing sharded BFT (Elastico, OmniLedger, RapidChain), Algorand sortit
 Douceur's Sybil attack, Lam/Riedl and Mobasher shilling attacks, Yin/Krum aggregation
 limits, Bracha broadcast, oracle/Schelling-point problems, truth discovery and
 EigenTrust.
-Correction: added eleven [prior-art entries](prior-art.md); identified participation
+Correction: added eight [prior-art entries](prior-art.md); identified participation
 asymmetry as sparse-item shilling and shortened the open list.
 
 ## Reviewer's verdict, condensed
