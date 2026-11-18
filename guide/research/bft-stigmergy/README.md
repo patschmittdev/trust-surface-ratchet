@@ -1,5 +1,8 @@
 # Byzantine fault tolerance and stigmergy
 
+Cost figures are nominal honest-traffic costs, excluding adversary-generated
+traffic; they do not measure total traffic under attack.
+
 > **EXPERIMENTAL:** a simulation research package, not a runtime design or a
 > BFT tolerance guarantee.
 

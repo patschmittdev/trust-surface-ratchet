@@ -38,7 +38,7 @@
 //   broadcast  No board. Every agent sends its signed observation to every
 //              other agent each round and keeps a sliding window; evidence is
 //              the per-option median of received reports. This is the
-//              reliable-broadcast layer of a BFT system with the same
+//              signed synchronous best-effort broadcast model, without equivocation, with the same
 //              identity rule as `bound`. Cost: 2(N-1) messages.
 //   attested   The board is sharded and replicated: cue m lives on a replica
 //              set of r nodes, so a fraction `byz` of replicas is Byzantine
@@ -52,7 +52,7 @@
 //
 // One agent-side ingredient is switchable on every identity-bound protocol
 // (--verify): conflict-triggered verification. A store that holds signed,
-// per-identity deposits can report not just a median but how many identities
+// per-identity deposits can report not just a median but how many deposits across the window
 // dissent from it. An honest agent that reads a contested option spends part
 // of its exploration budget visiting that option, so contention attracts
 // honest observation instead of being decided by whoever wrote most. An
@@ -272,7 +272,7 @@ class WindowStore {
     const per = Array.from({ length: this.M }, () => []);
     for (const r of this.rounds) for (const d of r.values()) per[d.option].push(d.value);
     const value = per.map((vals) => median(vals));
-    // dissent: share of identities whose deposit sits far from the option's
+    // dissent: share of deposits across the window sitting far from the option's
     // median, plus the absolute count so a floor can be applied
     const dissent = per.map((vals, m) => {
       if (value[m] === null) return 0;
@@ -350,7 +350,7 @@ function makeProtocol(name, cfg, world, rng) {
       };
     }
     case 'broadcast': {
-      // All-to-all reliable broadcast means every honest agent ends the
+      // Synchronous best-effort broadcast without equivocation assumes every honest agent ends the
       // round with the same multiset of signed reports, so one shared store
       // is semantically identical to N per-agent stores. The cost is counted
       // analytically: N-1 sends and N-1 receives per agent per round.
@@ -438,6 +438,7 @@ function makeProtocol(name, cfg, world, rng) {
             }
           }
         },
+        // Nominal honest-traffic cost, excluding adversary-generated traffic.
         // Counted on the same basis as broadcast: sends plus receives, averaged
         // over all nodes. An agent sends one deposit to r replicas and k reads
         // for each of M cues; the replicas, which are also nodes, receive the
