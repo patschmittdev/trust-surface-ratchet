@@ -3,7 +3,7 @@
 //
 // Scans repository text and paths for environment-supplied private entries.
 // Public pattern rules cover guide text files, excluding guide/scripts.
-// Binary files are skipped; unreadable entries fail closed.
+// NUL-containing files receive private checks only; unreadable entries fail closed.
 // Exit codes: 0 clean, 1 findings or required list missing, 2 internal error.
 
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const EXCLUDED_DIRS = new Set(['.git', '.lake', 'node_modules']);
 
 // Public pattern rules retain their original guide text surfaces.
-// Private tokens scan every non-binary repository file.
+// Private tokens also scan projections of NUL-containing files.
 const TEXT_EXT = new Set(['.md', '.svg', '.lean', '.json', '.yml', '.yaml', '.toml', '.txt']);
 const TEXT_FILES = new Set(['lean-toolchain', 'LICENSE', '.gitignore']);
 
@@ -29,7 +29,7 @@ const TEXT_FILES = new Set(['lean-toolchain', 'LICENSE', '.gitignore']);
 const RULES = [
   { id: 'brand', re: /patschmitt\w*/gi },
   { id: 'tool-name', re: /\bcli_[a-z][a-z0-9_]*\b/gi },
-  { id: 'source-path', re: /\b[\w./-]+\.mjs\b/gi },
+  { id: 'source-path', sourcePaths: true },
   { id: 'catalog-id', re: /\bD\d{1,3}\b/g, exts: new Set(['.svg']) },
 ];
 
@@ -72,7 +72,10 @@ export function matches(text, token) {
   // Names can span words; identifier runs stay inside one whitespace word.
   const scopes = /[\s-]/.test(entry) ? [words.flat()] : words;
   for (const scope of scopes) {
-    if (!whole && scope.some((part) => part.includes(target))) return true;
+    if (!whole) {
+      if (scope.join('').includes(target)) return true;
+      continue;
+    }
     for (let i = 0; i < scope.length; i++) {
       let run = '';
       for (let j = i; j < scope.length && run.length < target.length; j++) {
@@ -90,23 +93,25 @@ export function scan(files, root = ROOT, rules = RULES) {
   const hits = [];
   let read = 0;
   let binary = 0;
+  const projection = (value) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const sensitive = (value) => tokens.some((token) => {
+    const target = projection(token);
+    return matches(value, token) || (target && projection(value).includes(target));
+  });
   const add = (file, line, rule, match) => hits.push({
-    file: withheld && tokens.some((token) => matches(file, token)) ? '(path withheld)' : file,
+    file: withheld && sensitive(file) ? '(path withheld)' : file,
     line, rule, ...(withheld ? {} : { match }),
   });
-  const seen = new Set();
   function visit(file) {
     if (tokens.some((token) => matches(file, token))) add(file, 0, 'private-token', file);
     const full = join(root, file);
     let bytes;
     let children;
     try {
-      lstatSync(full);
-      const real = realpathSync(full);
-      const stat = statSync(full);
+      const link = lstatSync(full);
+      const stat = link.isSymbolicLink() ? statSync(full) : link;
+      if (link.isSymbolicLink() && stat.isDirectory()) return;
       if (stat.isDirectory()) {
-        if (seen.has(real)) return;
-        seen.add(real);
         children = readdirSync(full);
       } else {
         bytes = readFileSync(full);
@@ -123,6 +128,19 @@ export function scan(files, root = ROOT, rules = RULES) {
     }
     if (bytes.includes(0)) {
       binary++;
+      const projections = [bytes.toString('latin1').replace(/\0/g, '')];
+      if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+        projections.push(bytes.subarray(2).toString('utf16le'));
+      } else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+        const swapped = Buffer.from(bytes.subarray(2, bytes.length - (bytes.length % 2)));
+        swapped.swap16();
+        projections.push(swapped.toString('utf16le'));
+      }
+      for (const text of new Set(projections)) {
+        text.split(/\r\n|[\r\n]/).forEach((line, i) => {
+          if (tokens.some((token) => matches(line, token))) add(file, i + 1, 'private-token', line);
+        });
+      }
       return;
     }
     read++;
@@ -132,6 +150,24 @@ export function scan(files, root = ROOT, rules = RULES) {
           !(TEXT_EXT.has(extname(file)) || TEXT_FILES.has(file.split('/').at(-1)))) return;
       for (const rule of rules) {
         if (rule.exts && !rule.exts.has(extname(file))) continue;
+        if (rule.sourcePaths) {
+          for (const token of line.split(/[^\w./-]+/)) {
+            // Each candidate is consumed once, including long extensionless runs.
+            // Retain the greedy rule's final extension boundary, even before
+            // a slash or hyphen, without retrying a growing prefix.
+            let end = 0;
+            for (const extension of token.matchAll(/\.mjs\b/gi)) {
+              end = extension.index + extension[0].length;
+            }
+            const candidate = token.slice(0, end);
+            if (!candidate.toLowerCase().endsWith('.mjs')) continue;
+            const match = candidate.replace(/^[^\w]+/, '');
+            if (match.length > 4 && !isAllowed(rule.id, match, file, line)) {
+              add(file, i + 1, rule.id, match);
+            }
+          }
+          continue;
+        }
         rule.re.lastIndex = 0;
         let m;
         while ((m = rule.re.exec(line)) !== null) {
@@ -152,32 +188,43 @@ function canonicalPath(path) {
 }
 
 export function main() {
+  const entries = tokensFromEnv();
+  const project = (value) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const print = (stream, value) => {
+    const text = String(value);
+    const hidden = process.env.NEUTRALITY_SHOW_VALUES !== 'true' &&
+      entries.some((entry) => matches(text, entry) ||
+        (project(entry) && project(text).includes(project(entry))));
+    console[stream](hidden ? '(text withheld)' : text);
+  };
+  const log = (value) => print('log', value);
+  const error = (value) => print('error', value);
   try {
     if (!tokensFromEnv().length) {
       if (process.env.NEUTRALITY_REQUIRE_DENYLIST === 'true') {
-        console.error('Neutrality check FAILED: private list is required but not configured.');
+        error('Neutrality check FAILED: private list is required but not configured.');
         return 1;
       }
-      console.log('Private list is not configured; only public pattern rules ran.');
+      log('Private list is not configured; only public pattern rules ran.');
     }
     const hits = scan(['']);
-    console.log(`Neutrality check: scanned ${hits.read} files; skipped ${hits.binary} binary files.`);
+    log(`Neutrality check: scanned ${hits.read} files; skipped public rules for ${hits.binary} binary files (private list still applied).`);
     if (!hits.length) {
-      console.log('Neutrality check passed: no private-context tokens.');
+      log('Neutrality check passed: no private-context tokens.');
       return 0;
     }
-    console.error(`Neutrality check FAILED: ${hits.length} private-context token(s) found.`);
-    for (const h of hits) console.error(`${h.file}:${h.line} [${h.rule}]${h.match === undefined ? '' : ' ' + h.match}`);
+    error(`Neutrality check FAILED: ${hits.length} private-context token(s) found.`);
+    for (const h of hits) error(`${h.file}:${h.line} [${h.rule}]${h.match === undefined ? '' : ' ' + h.match}`);
     if (hits.some((h) => ['private-token', 'unreadable'].includes(h.rule))) {
-      console.error('Private-token hits cannot be allowlisted; remove or genericize the text. Resolve unreadable entries.');
+      error('Private-token hits cannot be allowlisted; remove or genericize the text. Resolve unreadable entries.');
     }
     if (hits.some((h) => !['private-token', 'unreadable'].includes(h.rule))) {
-      console.error('Remove or genericize the text, or add a reasoned public-rule allowlist entry in guide/scripts/check-neutrality.mjs.');
+      error('Remove or genericize the text, or add a reasoned public-rule allowlist entry in guide/scripts/check-neutrality.mjs.');
     }
     return 1;
-  } catch (error) {
-    console.error('Neutrality check FAILED: internal error (details withheld; rerun locally with NEUTRALITY_SHOW_VALUES=true)');
-    if (process.env.NEUTRALITY_SHOW_VALUES === 'true') console.error(error);
+  } catch (failure) {
+    error('Neutrality check FAILED: internal error (details withheld; rerun locally with NEUTRALITY_SHOW_VALUES=true)');
+    if (process.env.NEUTRALITY_SHOW_VALUES === 'true') error(failure);
     return 2;
   }
 }
