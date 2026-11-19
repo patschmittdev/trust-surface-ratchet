@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 740" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>The ratchet practice: list changes and coverage review</title>
+  <desc>A change to PERMISSION_MODE_VALUES fails a pinned-list test. A person reviews the named boundary, then accepts the change with an updated expectation and rationale or reverts it. A separate coverage gate flags new supported frozen exports without a registered test or exemption.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 700; fill: #111827; }
+      .subtitle { font-size: 14px; fill: #4b5563; }
+      .section { font-size: 12px; font-weight: 700; fill: #64748b; text-transform: uppercase; }
+      .card-title { font-size: 17px; font-weight: 700; fill: #111827; }
+      .body { font-size: 13px; fill: #374151; }
+      .small { font-size: 12px; fill: #475569; }
+      .tiny { font-size: 11px; fill: #64748b; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace; }
+      .line { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+      .muted { fill: #64748b; }
+    </style>
+  </defs>
+  <rect width="1120" height="740" fill="#ffffff"/>
+  <text x="560" y="43" text-anchor="middle" class="title">The ratchet practice</text>
+  <text x="560" y="70" text-anchor="middle" class="subtitle">Checks expose list changes and missing coverage. People decide what to accept.</text>
+  <text x="30" y="108" class="section">Changed membership</text>
+  <rect x="30" y="125" width="240" height="200" rx="8" fill="#eff6ff" stroke="#0078d4" stroke-width="2"/>
+  <text x="46" y="154" class="card-title">Edit</text>
+  <text x="46" y="180" class="body">Canonical closed export:</text>
+  <text x="46" y="200" class="body">PERMISSION_MODE_VALUES</text>
+  <text x="46" y="220" class="body">starts as ["safe", "operator"].</text>
+  <text x="46" y="240" class="body">Add or remove a member.</text>
+  <rect x="300" y="125" width="240" height="200" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+  <text x="316" y="154" class="card-title">Pinned-list test fails</text>
+  <text x="316" y="180" class="body">Compare the complete export</text>
+  <text x="316" y="200" class="body">with a literal expected list.</text>
+  <text x="316" y="220" class="body">Failure names the contract</text>
+  <text x="316" y="240" class="body">and the review needed.</text>
+  <rect x="570" y="125" width="240" height="285" rx="8" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+  <text x="586" y="154" class="card-title">Review</text>
+  <text x="586" y="180" class="body">A person classifies the change</text>
+  <text x="586" y="200" class="body">against the named boundary.</text>
+  <text x="586" y="220" class="body">What data or authority shifts?</text>
+  <text x="586" y="240" class="body">Which consumers use it?</text>
+  <text x="586" y="260" class="body">Do export, pin, comment agree?</text>
+  <text x="586" y="280" class="body">Which test and gate expose it?</text>
+  <text x="586" y="300" class="body">If hashed, is encoding unambiguous?</text>
+  <text x="586" y="320" class="body">Does coverage narrow?</text>
+  <rect x="850" y="125" width="240" height="145" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="866" y="154" class="card-title">Accept</text>
+  <text x="866" y="180" class="body">Update the expected list</text>
+  <text x="866" y="200" class="body">in the same change.</text>
+  <text x="866" y="220" class="body">Record why the boundary widened.</text>
+  <rect x="850" y="300" width="240" height="110" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="866" y="329" class="card-title">Reject</text>
+  <text x="866" y="355" class="body">Revert the list change.</text>
+  <path d="M 270 220 H 300" class="line"/>
+  <path d="M 540 220 H 570" class="line"/>
+  <path d="M 810 220 H 830 V 195 H 850" class="line"/>
+  <path d="M 830 220 V 350 H 850" class="line"/>
+  <text x="30" y="450" class="section">New export coverage</text>
+  <rect x="30" y="470" width="240" height="145" rx="8" fill="#eff6ff" stroke="#0078d4" stroke-width="2"/>
+  <text x="46" y="499" class="card-title">New closed export</text>
+  <text x="46" y="525" class="body">Introduce a canonical</text>
+  <text x="46" y="545" class="body">closed export.</text>
+  <rect x="330" y="470" width="340" height="145" rx="8" fill="#fff7ed" stroke="#c2410c" stroke-width="2"/>
+  <text x="346" y="499" class="card-title">Coverage gate flags it</text>
+  <text x="346" y="525" class="body">A supported frozen export has</text>
+  <text x="346" y="545" class="body">no registered test or exemption.</text>
+  <rect x="730" y="470" width="360" height="145" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="746" y="499" class="card-title">Register or exempt</text>
+  <text x="746" y="525" class="body">Add a manifest entry and pinned test,</text>
+  <text x="746" y="545" class="body">or justify a narrow exemption.</text>
+  <path d="M 270 540 H 330" class="line"/>
+  <path d="M 670 540 H 730" class="line"/>
+  <rect x="30" y="650" width="1060" height="65" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="50" y="676" class="body">Neither check decides whether a list is safe.</text>
+  <text x="50" y="698" class="body">Approving a bad expected list moves the tripwire in the wrong direction.</text>
+</svg>

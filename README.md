@@ -48,8 +48,7 @@ Approving a bad expected list moves the tripwire in the wrong direction.
 The project is a reference pattern and JavaScript example. It does not claim
 external validation, a novel security primitive, or broad language coverage.
 
-The [guide](guide/README.md) contains a case study, diagrams, a fixture, a standalone
-Lean model, and experimental research.
+The [guide](guide/README.md) contains a case study, two diagrams, and a fixture.
 
 ## License and participation
 

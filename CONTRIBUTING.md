@@ -18,16 +18,7 @@ npm run check:guide-neutrality
 node guide/examples/ratchet-fixture/check
 ```
 
-For proof changes, use the Lean toolchain recorded in
-[lean-toolchain](guide/proofs/lean-toolchain), then run:
-
-```sh
-cd guide/proofs
-lake build
-```
-
-Keep the corpus free of `sorry`. If a check cannot run, report the missing
-validation instead of calling it passed.
+If a check cannot run, report the missing validation instead of calling it passed.
 
 For registered list and gate-configuration changes, follow the review questions
 in the canonical [practice](practice.md). A green gate does not approve a list.
@@ -38,7 +29,7 @@ vulnerabilities and the [Code of Conduct](CODE_OF_CONDUCT.md) in all discussions
 Do not include secrets, customer data, or private source in contributions.
 
 Contributions follow the license map in [NOTICE](NOTICE) and
-[guide/LICENSE](guide/LICENSE): code, scripts, and Lean source are Apache-2.0;
+[guide/LICENSE](guide/LICENSE): code and scripts are Apache-2.0;
 guide prose and diagrams are CC BY 4.0 unless a file states otherwise.
 
 Everything outside guide/ prose and diagrams, including root docs such as
@@ -56,6 +47,6 @@ entry whole-word (no affixes). Public pattern rules apply to guide text
 files by extension, excluding guide/scripts. Whenever a list is configured,
 all matched values are withheld unless `NEUTRALITY_SHOW_VALUES=true`;
 paths and printed text are also withheld when their lowercase alphanumeric
-projection contains an entry�s projection. Fork pull requests do not receive the list.
+projection contains an entry's projection. Fork pull requests do not receive the list.
 Pushes to non-fork repositories require it; local runs can set
 `NEUTRALITY_REQUIRE_DENYLIST=true` to require it.

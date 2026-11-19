@@ -3,13 +3,11 @@ File-class license map
 Prose (guide/**/*.md) and SVG diagrams (guide/diagrams/*.svg) are CC BY 4.0,
 unless a file says otherwise.
 
-Executable code, scripts, Lean source, machine-readable fixtures, and build configuration
+Executable code, scripts, machine-readable fixtures, and build configuration
 under guide/ are Apache-2.0 under the root LICENSE. This includes:
-- guide/proofs/**/*.lean, lakefile.lean, lake-manifest.json, and lean-toolchain;
 - guide/scripts/*.mjs;
-- all test files under guide/ ending in `.mjs` with `.test` before the extension, including the simulator and check-script tests;
+- all test files under guide/ ending in `.mjs` with `.test` before the extension, including check-script tests;
 - guide/examples/ratchet-fixture/{check,demonstrate-regression,manifest.json,boundary-fields.json};
-- guide/research/bft-stigmergy/simulate;
 - .gitignore files.
 
 CC BY 4.0 license notice
