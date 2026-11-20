@@ -37,7 +37,7 @@ practice.md, is Apache-2.0.
 
 The neutrality guard applies the newline- or comma-separated private
 `NEUTRALITY_DENYLIST` to repository text and paths, excluding
-`.git`, `node_modules`, `.lake`, and symlinked directories, which are not
+`.git`, `node_modules`, and symlinked directories, which are not
 traversed. NUL-containing files receive only the private list checks.
 Entries cannot span lines;
 identifier entries match identifier forms in any case, with `_`/`-` separators,
@@ -47,6 +47,7 @@ entry whole-word (no affixes). Public pattern rules apply to guide text
 files by extension, excluding guide/scripts. Whenever a list is configured,
 all matched values are withheld unless `NEUTRALITY_SHOW_VALUES=true`;
 paths and printed text are also withheld when their lowercase alphanumeric
-projection contains an entry's projection. Fork pull requests do not receive the list.
-Pushes to non-fork repositories require it; local runs can set
-`NEUTRALITY_REQUIRE_DENYLIST=true` to require it.
+projection contains an entry's projection. The guard does not run in CI; the
+maintainer runs it with the private list before pushing. Without a list, only
+the public pattern rules run; set `NEUTRALITY_REQUIRE_DENYLIST=true` to fail
+instead.
