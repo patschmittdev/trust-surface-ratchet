@@ -16,7 +16,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname, dirname, resolve } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const EXCLUDED_DIRS = new Set(['.git', '.lake', 'node_modules']);
+const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 
 // Inline markdown links and images: [text](target) and ![alt](target).
 const LINK_RE = /!?\[[^\]]*\]\(([^)]+)\)/g;

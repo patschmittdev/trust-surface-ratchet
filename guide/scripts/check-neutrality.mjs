@@ -14,14 +14,14 @@ import { join, extname, resolve } from 'node:path';
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 // Directories that are never scanned.
-// - .lake / node_modules: build output and vendored code.
+// - node_modules: vendored code.
 // - .git: version control internals.
-const EXCLUDED_DIRS = new Set(['.git', '.lake', 'node_modules']);
+const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 
 // Public pattern rules retain their original guide text surfaces.
 // Private tokens also scan projections of NUL-containing files.
-const TEXT_EXT = new Set(['.md', '.svg', '.lean', '.json', '.yml', '.yaml', '.toml', '.txt']);
-const TEXT_FILES = new Set(['lean-toolchain', 'LICENSE', '.gitignore']);
+const TEXT_EXT = new Set(['.md', '.svg', '.json', '.yml', '.yaml', '.toml', '.txt']);
+const TEXT_FILES = new Set(['LICENSE', '.gitignore']);
 
 // Public rules have stable IDs and optional extension scopes.
 // Private entries are never stored here and cannot be allowlisted.
