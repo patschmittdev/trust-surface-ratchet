@@ -41,7 +41,6 @@ The failure does not declare the new field unsafe. It forces the contributor to 
 - What authority could it convey?
 - Which threat comment describes the defense or limitation?
 - Which exhaustive test covers it?
-- Does the formal model need an update?
 - Is the new field safe for every worker and delegation path?
 
 ## What the ratchet did not do
@@ -64,4 +63,4 @@ The first command verifies the reviewed baseline. The second copies the fixture,
 
 ## Evidence boundary
 
-This case study demonstrates a review mechanism, not a security certification. The fixture is intentionally small, the model is not connected to a production implementation, and the result depends on the maintainer's threat analysis after the gate fires.
+This case study demonstrates a review mechanism, not a security certification. The fixture is intentionally small and not connected to a production implementation, and the result depends on the maintainer's threat analysis after the gate fires.

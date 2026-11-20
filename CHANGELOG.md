@@ -6,6 +6,7 @@
 
 - The neutrality guard no longer runs in CI. The maintainer runs it with the private list before pushing; `npm run check:guide-neutrality` still runs the public pattern rules.
 - Removed scanner exclusions and file types left over from the removed Lean proofs.
+- Removed the remaining references to the formal model from the boundary-widening case study and `practice.md`.
 
 ## 0.1.0
 

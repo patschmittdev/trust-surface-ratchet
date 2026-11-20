@@ -73,7 +73,8 @@ Neither the practice nor a passing gate establishes that:
 - a maintainer will reject an unsafe update.
 
 Behavioral bugs within a named surface, domain-specific secrets known only to
-the embedding host, and model-to-implementation mismatches need separate checks.
+the embedding host, and mismatches between a design and its implementation need
+separate checks.
 A dishonest manifest update can move the tripwire past a hostile change.
 
 The practice is local to a codebase and operates at edit time. It does not
